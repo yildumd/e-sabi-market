@@ -3,67 +3,51 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 
 // Create vendor profile
-exports.createVendorProfile = async (req, res) => {
+const createVendorProfile = async (req, res) => {
   try {
-    // Check if the user is a vendor
-    if (req.user.role !== 'vendor') {
-      return res.status(403).json({ message: 'Only vendors can create a vendor profile' });
-    }
-
-    // Check if the vendor profile already exists for this user
-    const existingVendor = await Vendor.findOne({ user: req.user._id });
+    const { storeName, address, deliveryPricingPerKm } = req.body;
+    
+    // Check if vendor profile already exists
+    const existingVendor = await Vendor.findOne({ user: req.userId });
     if (existingVendor) {
       return res.status(400).json({ message: 'Vendor profile already exists' });
     }
 
-    const { storeName, logo, description, address, deliveryPricingPerKm } = req.body;
-
-    const vendor = await Vendor.create({
-      user: req.user._id,
+    const vendor = new Vendor({
+      user: req.userId,
       storeName,
-      logo,
-      description,
       address,
-      deliveryPricingPerKm
+      deliveryPricingPerKm: deliveryPricingPerKm || 50
     });
 
-    res.status(201).json({
-      status: 'success',
-      data: {
-        vendor
-      }
-    });
+    await vendor.save();
+    res.status(201).json({ message: 'Vendor profile created successfully', vendor });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error creating vendor profile', error: error.message });
   }
 };
 
 // Get vendor profile
-exports.getVendorProfile = async (req, res) => {
+const getVendorProfile = async (req, res) => {
   try {
-    const vendor = await Vendor.findOne({ user: req.user._id });
-    
+    const vendor = await Vendor.findOne({ user: req.userId }).populate('user', 'name email');
     if (!vendor) {
       return res.status(404).json({ message: 'Vendor profile not found' });
     }
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        vendor
-      }
-    });
+    res.status(200).json({ vendor });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error fetching vendor profile', error: error.message });
   }
 };
 
 // Update vendor profile
-exports.updateVendorProfile = async (req, res) => {
+const updateVendorProfile = async (req, res) => {
   try {
+    const { storeName, address, deliveryPricingPerKm } = req.body;
+    
     const vendor = await Vendor.findOneAndUpdate(
-      { user: req.user._id },
-      req.body,
+      { user: req.userId },
+      { storeName, address, deliveryPricingPerKm },
       { new: true, runValidators: true }
     );
 
@@ -71,66 +55,70 @@ exports.updateVendorProfile = async (req, res) => {
       return res.status(404).json({ message: 'Vendor profile not found' });
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        vendor
-      }
-    });
+    res.status(200).json({ message: 'Vendor profile updated successfully', vendor });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error updating vendor profile', error: error.message });
   }
 };
 
 // Get vendor products
-exports.getVendorProducts = async (req, res) => {
+const getVendorProducts = async (req, res) => {
   try {
-    const products = await Product.find({ vendor: req.user._id });
-    
-    res.status(200).json({
-      status: 'success',
-      results: products.length,
-      data: {
-        products
-      }
-    });
+    const vendor = await Vendor.findOne({ user: req.userId });
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor profile not found' });
+    }
+
+    const products = await Product.find({ vendor: vendor._id });
+    res.status(200).json({ products });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error fetching products', error: error.message });
   }
 };
 
 // Add product
-exports.addProduct = async (req, res) => {
+const addProduct = async (req, res) => {
   try {
-    const { name, description, price, category, discount } = req.body;
-    
-    const product = await Product.create({
-      vendor: req.user._id,
+    const { name, description, price, category, stock } = req.body;
+    const image = req.file ? req.file.path : null;
+
+    const vendor = await Vendor.findOne({ user: req.userId });
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor profile not found' });
+    }
+
+    const product = new Product({
+      vendor: vendor._id,
       name,
       description,
       price,
       category,
-      discount,
-      image: req.file ? req.file.path : null
+      stock,
+      image
     });
 
-    res.status(201).json({
-      status: 'success',
-      data: {
-        product
-      }
-    });
+    await product.save();
+    res.status(201).json({ message: 'Product added successfully', product });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error adding product', error: error.message });
   }
 };
 
 // Update product
-exports.updateProduct = async (req, res) => {
+const updateProduct = async (req, res) => {
   try {
+    const { productId } = req.params;
+    const { name, description, price, category, stock } = req.body;
+    const image = req.file ? req.file.path : undefined;
+
+    const vendor = await Vendor.findOne({ user: req.userId });
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor profile not found' });
+    }
+
     const product = await Product.findOneAndUpdate(
-      { _id: req.params.productId, vendor: req.user._id },
-      req.body,
+      { _id: productId, vendor: vendor._id },
+      { name, description, price, category, stock, ...(image && { image }) },
       { new: true, runValidators: true }
     );
 
@@ -138,69 +126,65 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        product
-      }
-    });
+    res.status(200).json({ message: 'Product updated successfully', product });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error updating product', error: error.message });
   }
 };
 
 // Delete product
-exports.deleteProduct = async (req, res) => {
+const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findOneAndDelete({
-      _id: req.params.productId,
-      vendor: req.user._id
-    });
+    const { productId } = req.params;
+
+    const vendor = await Vendor.findOne({ user: req.userId });
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor profile not found' });
+    }
+
+    const product = await Product.findOneAndDelete({ _id: productId, vendor: vendor._id });
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    res.status(204).json({
-      status: 'success',
-      data: null
-    });
+    res.status(200).json({ message: 'Product deleted successfully' });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error deleting product', error: error.message });
   }
 };
 
 // Get vendor orders
-exports.getVendorOrders = async (req, res) => {
+const getVendorOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ vendor: req.user._id })
-      .populate('customer', 'name email')
-      .sort({ createdAt: -1 });
+    const vendor = await Vendor.findOne({ user: req.userId });
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor profile not found' });
+    }
 
-    res.status(200).json({
-      status: 'success',
-      results: orders.length,
-      data: {
-        orders
-      }
-    });
+    const orders = await Order.find({ vendor: vendor._id })
+      .populate('customer', 'name email')
+      .populate('items.product', 'name price');
+
+    res.status(200).json({ orders });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error fetching orders', error: error.message });
   }
 };
 
 // Update order status
-exports.updateOrderStatus = async (req, res) => {
+const updateOrderStatus = async (req, res) => {
   try {
+    const { orderId } = req.params;
     const { status } = req.body;
-    const validStatuses = ['pending', 'accepted', 'in-transit', 'delivered', 'cancelled'];
-    
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+
+    const vendor = await Vendor.findOne({ user: req.userId });
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor profile not found' });
     }
 
     const order = await Order.findOneAndUpdate(
-      { _id: req.params.orderId, vendor: req.user._id },
+      { _id: orderId, vendor: vendor._id },
       { status },
       { new: true, runValidators: true }
     );
@@ -209,13 +193,20 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        order
-      }
-    });
+    res.status(200).json({ message: 'Order status updated successfully', order });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: 'Error updating order status', error: error.message });
   }
+};
+
+module.exports = {
+  createVendorProfile,
+  getVendorProfile,
+  updateVendorProfile,
+  getVendorProducts,
+  addProduct,
+  updateProduct,
+  deleteProduct,
+  getVendorOrders,
+  updateOrderStatus
 };

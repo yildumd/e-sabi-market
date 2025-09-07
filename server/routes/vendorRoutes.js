@@ -11,7 +11,7 @@ const {
   updateOrderStatus
 } = require('../controllers/vendorController');
 const auth = require('../middleware/auth');
-const upload = require('../middleware/upload'); // We'll create this for image uploads
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
