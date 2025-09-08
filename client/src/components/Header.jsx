@@ -30,6 +30,12 @@ const Header = () => {
               <>
                 <Link to="/products" className="text-gray-700 hover:text-green-600 transition-colors">Products</Link>
                 <Link to="/cart" className="text-gray-700 hover:text-green-600 transition-colors">Cart</Link>
+                {/* Vendor Dashboard Link - Only show for vendors */}
+                {user.role === 'vendor' && (
+                  <Link to="/vendor-dashboard" className="text-gray-700 hover:text-green-600 transition-colors">
+                    Vendor Dashboard
+                  </Link>
+                )}
               </>
             )}
             <Link to="/about" className="text-gray-700 hover:text-green-600 transition-colors">About</Link>
@@ -76,6 +82,12 @@ const Header = () => {
                 <>
                   <Link to="/products" className="text-gray-700 hover:text-green-600 transition-colors">Products</Link>
                   <Link to="/cart" className="text-gray-700 hover:text-green-600 transition-colors">Cart</Link>
+                  {/* Vendor Dashboard Link - Only show for vendors */}
+                  {user.role === 'vendor' && (
+                    <Link to="/vendor-dashboard" className="text-gray-700 hover:text-green-600 transition-colors">
+                      Vendor Dashboard
+                    </Link>
+                  )}
                 </>
               )}
               <Link to="/about" className="text-gray-700 hover:text-green-600 transition-colors">About</Link>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { productsAPI, cartAPI } from '../services/api';
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -11,15 +11,13 @@ const Products = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:5000/api/products', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        setLoading(true);
+        const response = await productsAPI.getAll();
         setProducts(response.data);
       } catch (err) {
-        setError('Failed to fetch products');
+        const errorMessage = err.response?.data?.message || 
+                            'Failed to fetch products. Please try again later.';
+        setError(errorMessage);
         console.error('Error fetching products:', err);
       } finally {
         setLoading(false);
@@ -31,20 +29,34 @@ const Products = () => {
 
   const addToCart = async (productId) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/cart/add', 
-        { productId, quantity: 1 },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-      // Show success message or update cart count
-      alert('Product added to cart!');
+      await cartAPI.addItem(productId, 1);
+      
+      // Show success message with a better UI notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+      notification.textContent = 'Product added to cart!';
+      document.body.appendChild(notification);
+      
+      // Remove notification after 3 seconds
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 3000);
     } catch (err) {
+      const errorMessage = err.response?.data?.message || 
+                          'Failed to add product to cart. Please try again.';
+      
+      // Show error message
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+      notification.textContent = errorMessage;
+      document.body.appendChild(notification);
+      
+      // Remove notification after 3 seconds
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 3000);
+      
       console.error('Error adding to cart:', err);
-      alert('Failed to add product to cart');
     }
   };
 
@@ -52,6 +64,7 @@ const Products = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <p className="ml-4 text-gray-600">Loading products...</p>
       </div>
     );
   }
@@ -59,43 +72,83 @@ const Products = () => {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500 text-xl">{error}</div>
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">{error}</div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-green-800 mb-8">Available Products</h1>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map(product => (
-          <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-            <img 
-              src={product.image || 'https://via.placeholder.com/300x200?text=Product+Image'} 
-              alt={product.name}
-              className="w-full h-48 object-cover"
-            />
-            <div className="p-4">
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">{product.name}</h3>
-              <p className="text-gray-600 mb-2">{product.description}</p>
-              <p className="text-green-700 font-bold mb-2">₦{product.price}</p>
-              <p className="text-sm text-gray-500 mb-4">Sold by: {product.vendor?.businessName || 'Unknown Vendor'}</p>
-              
-              <button
-                onClick={() => addToCart(product._id)}
-                className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors"
-              >
-                Add to Cart
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-green-800">Available Products</h1>
+        <div className="text-sm text-gray-600">
+          Welcome back, {user?.name}
+        </div>
       </div>
       
-      {products.length === 0 && (
+      {products.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {products.map(product => (
+            <div key={product._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 border border-gray-100">
+              <div className="relative">
+                <img 
+                  src={product.image || 'https://via.placeholder.com/300x200?text=No+Image'} 
+                  alt={product.name}
+                  className="w-full h-48 object-cover"
+                  onError={(e) => {
+                    e.target.src = 'https://via.placeholder.com/300x200?text=No+Image';
+                  }}
+                />
+                {product.stock === 0 && (
+                  <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs">
+                    Out of Stock
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-1">{product.name}</h3>
+                <p className="text-gray-600 text-sm mb-3 line-clamp-2 h-10">{product.description}</p>
+                
+                <div className="flex justify-between items-center mb-3">
+                  <p className="text-green-700 font-bold text-lg">₦{product.price?.toLocaleString()}</p>
+                  {product.stock > 0 && (
+                    <p className="text-xs text-gray-500">{product.stock} in stock</p>
+                  )}
+                </div>
+                
+                <p className="text-sm text-gray-500 mb-4">
+                  Sold by: <span className="font-medium">{product.vendor?.businessName || 'Unknown Vendor'}</span>
+                </p>
+                
+                <button
+                  onClick={() => addToCart(product._id)}
+                  disabled={product.stock === 0}
+                  className={`w-full py-2 rounded transition-colors duration-200 ${
+                    product.stock === 0 
+                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed' 
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                >
+                  {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-xl">No products available at the moment.</p>
+          <div className="text-gray-400 text-6xl mb-4">🛒</div>
+          <p className="text-gray-500 text-xl mb-4">No products available at the moment.</p>
+          <p className="text-gray-400">Check back later or contact vendors to add products.</p>
         </div>
       )}
     </div>

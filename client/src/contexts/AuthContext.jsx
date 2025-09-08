@@ -1,4 +1,6 @@
+// client/src/contexts/AuthContext.jsx
 import { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -25,10 +27,34 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = (userData, token) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData);
+  const login = async (credentials) => {
+    try {
+      const response = await authAPI.login(credentials);
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+      
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Login failed' };
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      const response = await authAPI.register(userData);
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+      
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Registration failed' };
+    }
   };
 
   const logout = () => {
@@ -40,6 +66,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     login,
+    register,
     logout,
     loading
   };
