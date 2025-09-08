@@ -24,7 +24,7 @@ const Register = () => {
       
       // Create preview
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onend = () => {
         setStoreImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
@@ -40,23 +40,27 @@ const Register = () => {
       let response;
       
       if (data.userType === 'vendor') {
-        // Create FormData for vendor registration
-        const formData = new FormData();
+        // Create a regular JavaScript object for vendor registration
+        const vendorData = {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          businessName: data.storeName,
+          phone: data.storePhone,
+          storeAddress: data.storeAddress,
+          deliveryPricingPerKm: 50 // Default value
+        };
         
-        // Append all form data
-        Object.keys(data).forEach(key => {
-          if (data[key] !== undefined && data[key] !== null) {
-            formData.append(key, data[key]);
-          }
-        });
+        // Use the registerVendor endpoint with JSON data
+        response = await authAPI.registerVendor(vendorData);
         
-        // Append the store image if available
+        // If there's an image, upload it separately after registration
         if (storeImage) {
-          formData.append('storeImage', storeImage);
+          // You'll need to implement this endpoint on your backend
+          // const formData = new FormData();
+          // formData.append('storeImage', storeImage);
+          // await authAPI.uploadStoreImage(response.data.user.id, formData);
         }
-        
-        // Use the registerVendor endpoint
-        response = await authAPI.registerVendor(formData);
       } else {
         // Regular customer registration
         response = await authAPI.register(data);
